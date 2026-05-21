@@ -1,6 +1,6 @@
 # 知乎 CLI — Zhihu CLI
 
-基于 Cookie 认证的知乎 API 命令行工具，支持搜索、热榜、互动等操作。
+基于 Cookie 认证的知乎 API 命令行工具，支持搜索、热榜、内容查看、互动等操作。
 
 > 本项目参考了 [crispyChicken999/zhihu-fisher-vscode](https://github.com/crispyChicken999/zhihu-fisher-vscode) 的知乎 API 研究，感谢原作者的贡献 🙏
 
@@ -10,6 +10,10 @@
 - 搜索知乎回答（answer）和专栏文章（article）
 - 支持分页，最多一次返回 50 条
 - 自动过滤广告、推广等无关内容
+
+### 📖 查看内容
+- 查看回答、专栏文章的完整内容
+- 自动提取标题和作者信息
 
 ### 🔥 热榜
 - 获取知乎实时热榜话题列表
@@ -54,6 +58,9 @@ Cookie 会安全存储在本地的 `secrets/zhihu.env` 文件中，权限 600。
 ### 3. 开始使用
 
 ```bash
+# 查看回答内容
+python3 zhihu.py view https://www.zhihu.com/question/xxx/answer/xxx
+
 # 搜索
 python3 zhihu.py search "大模型" --type article --limit 5
 
@@ -77,6 +84,7 @@ python3 zhihu.py follow https://www.zhihu.com/people/xxx
 
 | 命令 | 说明 | 选项 |
 |------|------|------|
+| `view` | 查看回答/文章内容 | — |
 | `search` | 搜索内容 | `--type article\|answer`, `--limit N`, `--offset N` |
 | `hot` | 查看热榜 | — |
 | `upvote` | 点赞 | `--cancel` 取消点赞 |

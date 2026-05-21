@@ -16,12 +16,15 @@ tags: [zhihu, social, api, cli]
 
 ```
 zhihu-skill/
-├── SKILL.md       # 本文件 — skill 描述
-├── README.md      # 项目说明
-├── INSTALL.md     # 安装指南
-├── zhihu.py       # 核心 CLI 脚本
-└── secrets/       # Cookie 等敏感信息（自动创建，已 gitignore）
-    └── zhihu.env
+├── SKILL.md                            # 本文件 — skill 描述
+├── README.md                           # 项目说明
+├── INSTALL.md                          # 安装指南
+├── zhihu.py                            # 核心 CLI 脚本
+├── secrets/                            # Cookie 等敏感信息（自动创建，已 gitignore）
+│   └── zhihu.env
+└── references/
+    ├── zhihu-api.md                    # 知乎 API 端点参考
+    └── hot-list-parsing.md             # 热榜 HTML 解析参考
 ```
 
 ## 使用方式
@@ -110,6 +113,7 @@ python3 zhihu.py --help
 - 所有 API 请求自动携带 Cookie 和知乎标准请求头
 - 支持回答（answer）、文章（article）、想法（pin）三种内容类型
 - 搜索使用知乎官方搜索 API，不依赖浏览器
+- 热榜从 `zhihu.com/hot` 页面解析 HTML（旧 API 已废弃），详见 [references/hot-list-parsing.md](references/hot-list-parsing.md)
 
 ## 安全提示
 

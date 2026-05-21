@@ -505,6 +505,98 @@ def cmd_follow(args):
     print(f"✅ 已{action}用户 {user_id}")
 
 
+# ─────────────────────────────── 查看内容 ────────────────────────────────
+
+def cmd_view(args):
+    """查看回答/文章/想法的详细内容"""
+    cookie = require_cookie()
+    url = args.url
+
+    headers = get_headers(cookie)
+    headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+
+    try:
+        req = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        print(f"❌ 获取页面失败: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    import re
+
+    # 尝试从 js-initialData 提取内容
+    m = re.search(r'<script[^>]*id="js-initialData"[^>]*>([^<]+)</script>', html)
+    content = None
+    title = None
+    author = None
+
+    if m:
+        raw = m.group(1)
+        raw = raw.replace("\\\\u002F", "/").replace("\\u002F", "/")
+        try:
+            import json
+            data = json.loads(raw)
+            entities = data.get("initialState", {}).get("entities", {})
+
+            # 回答
+            answers = entities.get("answers", {})
+            for aid, ans in answers.items():
+                content = ans.get("content", "")
+                content = re.sub(r'<[^>]+>', '', content)
+                # title 从 question 里找
+                qid = ans.get("question", {}).get("id", "") or ans.get("question_id", "")
+                if qid and qid in entities.get("questions", {}):
+                    title = entities["questions"][qid].get("title", "")
+                author_id = ans.get("author", {}).get("id", "")
+                if author_id and author_id in entities.get("users", {}):
+                    author = entities["users"][author_id].get("name", "")
+                break
+
+            # 文章
+            if not content:
+                articles = entities.get("articles", {})
+                for aid, art in articles.items():
+                    title = art.get("title", "")
+                    content = art.get("content", "")
+                    content = re.sub(r'<[^>]+>', '', content)
+                    author_id = art.get("author", {}).get("id", "")
+                    if author_id and author_id in entities.get("users", {}):
+                        author = entities["users"][author_id].get("name", "")
+                    break
+
+        except json.JSONDecodeError:
+            pass
+
+    # 备选：从 zhuanlan 页面提取
+    if not content and "zhuanlan.zhihu.com" in url:
+        title_m = re.search(r'<h1[^>]*class="[^"]*Title[^"]*"[^>]*>(.*?)</h1>', html, re.DOTALL)
+        if title_m:
+            title = re.sub(r'<[^>]+>', '', title_m.group(1)).strip()
+        author_m = re.search(r'class="AuthorInfo[^"]*"[^>]*>.*?class="AuthorInfo-name[^"]*"[^>]*>(.*?)<', html, re.DOTALL)
+        if author_m:
+            author = re.sub(r'<[^>]+>', '', author_m.group(1)).strip()
+        content_m = re.search(r'class="Post-RichText[^"]*"[^>]*>([\s\S]*?)</div>', html, re.DOTALL)
+        if content_m:
+            content = re.sub(r'<[^>]+>', '', content_m.group(1)).strip()
+
+    # 备选：从 meta 标签提取（兜底）
+    if not title:
+        title_m = re.search(r'<meta[^>]*property="og:title"[^>]*content="([^"]+)"', html)
+        if title_m:
+            title = title_m.group(1)
+
+    if not content:
+        print("❌ 无法解析页面内容，可能 Cookie 已过期或页面不存在", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"📄 {title or '（无标题）'}")
+    if author:
+        print(f"👤 {author}")
+    print("─" * 70)
+    print(content.strip())
+
+
 # ─────────────────────────────── 主入口 ────────────────────────────────
 
 def main():
@@ -577,6 +669,11 @@ def main():
     p = subparsers.add_parser("unfollow", help="取消关注用户")
     p.add_argument("url", help="用户主页 URL")
     p.set_defaults(func=lambda a: cmd_follow(type('args', (), {'url': a.url, 'cancel': True})()))
+
+    # view
+    p = subparsers.add_parser("view", help="查看回答/文章详细内容")
+    p.add_argument("url", help="内容 URL")
+    p.set_defaults(func=cmd_view)
 
     args = parser.parse_args()
     args.func(args)
