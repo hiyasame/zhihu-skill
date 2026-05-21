@@ -1,0 +1,7 @@
+# Cookie 敏感信息
+secrets/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
