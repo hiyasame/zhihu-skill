@@ -253,10 +253,11 @@ def cmd_search(args):
 def cmd_hot(args):
     """获取知乎热榜"""
     cookie = require_cookie()
-        # 知乎热榜从页面数据获取（API 端点已废弃）
-    url = "https://www.zhihu.com/hot"
+
+    # 跟原版 zhihu-fisher-vscode 一样，从 HTML 解析热榜
     headers = get_headers(cookie)
-    req = urllib.request.Request(url, headers=headers, method="GET")
+    headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    req = urllib.request.Request("https://www.zhihu.com/hot", headers=headers, method="GET")
 
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -266,31 +267,42 @@ def cmd_hot(args):
         sys.exit(1)
 
     import re
-    m = re.search(r'<script[^>]*id="js-initialData"[^>]*>([^<]+)</script>', html)
-    if not m:
-        print("❌ 无法解析热榜数据", file=sys.stderr)
-        sys.exit(1)
+    # 解析每个 HotItem（excerpt 可选，链接位置不固定）
+    items = []
+    for section in re.findall(
+        r'<section[^>]*class="[^"]*HotItem[^"]*"[^>]*>.*?</section>',
+        html, re.DOTALL
+    ):
+        title_m = re.search(r'HotItem-title[^>]*>(.*?)</h2>', section, re.DOTALL)
+        excerpt_m = re.search(r'HotItem-excerpt[^>]*>(.*?)</p>', section, re.DOTALL)
+        metrics_m = re.search(r'HotItem-metrics[^>]*>(.*?)</div>', section, re.DOTALL)
+        link_m = re.search(r'href="(https://[^"]+)"', section)
+        if title_m and link_m:
+            items.append((
+                title_m.group(1),
+                excerpt_m.group(1) if excerpt_m else "",
+                metrics_m.group(1) if metrics_m else "",
+                link_m.group(1)
+            ))
 
-    raw = m.group(1)
-    raw = raw.replace("\\\\u002F", "/").replace("\\u002F", "/").replace("\\\\n", "").replace("\\n", "")
-    data = json.loads(raw)
-    hotlist = data.get("initialState", {}).get("topstory", {}).get("hotList", [])
+    print(f"🔥 知乎热榜 — 共 {len(items)} 条\n{'─' * 70}\n")
+    for i, (title, excerpt, metrics, link) in enumerate(items, 1):
+        title = re.sub(r'<[^>]+>', '', title).strip()
+        excerpt = re.sub(r'<[^>]+>', '', (excerpt or '')).strip()[:80]
+        metrics = re.sub(r'<[^>]+>', '', metrics).strip()
+        # 去掉 CSS 样式和无关字符
+        metrics = re.sub(r'\s*\.css-[^{]*\{[^}]*\}\s*', '', metrics)
+        metrics = metrics.replace('\u200b', '').replace('分享', '').strip()
+        metrics = re.sub(r'\s+', ' ', metrics).strip()
+        if not title:
+            title = "(无标题)"
 
-    print(f"🔥 知乎热榜 — 共 {len(hotlist)} 条\n{'─' * 70}")
-    for i, item in enumerate(hotlist, 1):
-        target = item.get("target", {})
-        title = (target.get("titleArea", {}) or {}).get("text", "") or "(无标题)"
-        metrics = (target.get("metricsArea", {}) or {}).get("text", "")
-        excerpt = (target.get("excerptArea", {}) or {}).get("text", "")[:80]
-        link = (target.get("link", {}) or {}).get("url", "")
         print(f"{i:2}. {title}")
         if metrics:
             print(f"    📊 {metrics}")
         if excerpt:
             print(f"    📝 {excerpt}")
-        if link:
-            print(f"    🔗 {link}")
-        print()
+        print(f"    🔗 {link}\n")
 
 
 # ─────────────────────────────── 点赞 ────────────────────────────────
