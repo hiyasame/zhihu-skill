@@ -253,19 +253,44 @@ def cmd_search(args):
 def cmd_hot(args):
     """获取知乎热榜"""
     cookie = require_cookie()
-    url = "https://www.zhihu.com/api/v4/hot_list?business_type=normal&medium=hot_list"
-    result = api_request("GET", url, cookie)
+        # 知乎热榜从页面数据获取（API 端点已废弃）
+    url = "https://www.zhihu.com/hot"
+    headers = get_headers(cookie)
+    req = urllib.request.Request(url, headers=headers, method="GET")
 
-    items = result.get("data", [])
-    print(f"🔥 知乎热榜 — {len(items)} 条\n{'─' * 60}")
-    for i, item in enumerate(items, 1):
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        print(f"❌ 获取热榜失败: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    import re
+    m = re.search(r'<script[^>]*id="js-initialData"[^>]*>([^<]+)</script>', html)
+    if not m:
+        print("❌ 无法解析热榜数据", file=sys.stderr)
+        sys.exit(1)
+
+    raw = m.group(1)
+    raw = raw.replace("\\\\u002F", "/").replace("\\u002F", "/").replace("\\\\n", "").replace("\\n", "")
+    data = json.loads(raw)
+    hotlist = data.get("initialState", {}).get("topstory", {}).get("hotList", [])
+
+    print(f"🔥 知乎热榜 — 共 {len(hotlist)} 条\n{'─' * 70}")
+    for i, item in enumerate(hotlist, 1):
         target = item.get("target", {})
-        title = target.get("title", "（无标题）")
-        detail_text = item.get("detail_text", "")
-        q_id = target.get("id", "")
-        link = f"https://www.zhihu.com/question/{q_id}"
-        print(f"{i:2}. {title}  [{detail_text}]")
-        print(f"    🔗 {link}")
+        title = (target.get("titleArea", {}) or {}).get("text", "") or "(无标题)"
+        metrics = (target.get("metricsArea", {}) or {}).get("text", "")
+        excerpt = (target.get("excerptArea", {}) or {}).get("text", "")[:80]
+        link = (target.get("link", {}) or {}).get("url", "")
+        print(f"{i:2}. {title}")
+        if metrics:
+            print(f"    📊 {metrics}")
+        if excerpt:
+            print(f"    📝 {excerpt}")
+        if link:
+            print(f"    🔗 {link}")
+        print()
 
 
 # ─────────────────────────────── 点赞 ────────────────────────────────
